@@ -2,3 +2,7 @@
 *.user
 *.pdb
 *.exe
+/coordinate_converter/x64
+/forward_kinenermatic/x64
+/inverse_inenermatic/x64
+.vs
