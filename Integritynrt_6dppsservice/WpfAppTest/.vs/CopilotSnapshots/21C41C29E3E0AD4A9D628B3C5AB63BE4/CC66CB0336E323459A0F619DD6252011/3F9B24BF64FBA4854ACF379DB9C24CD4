@@ -1,0 +1,145 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace WpfAppTest
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        // Per-WebView2 user data folders so we can remove cached data on close
+        private string _calibrationUserDataFolder;
+        private string _statusUserDataFolder;
+        // Runtime-created WebView2 controls (created in Loaded to control environment)
+        private Microsoft.Web.WebView2.Wpf.WebView2 Calibration_Windows;
+        private Microsoft.Web.WebView2.Wpf.WebView2 Status_Windows;
+        public MainWindow()
+        {
+            InitializeComponent();
+            this.Loaded += MainWindow_Loaded;
+            this.Closed += MainWindow_Closed;
+        }
+
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Create unique temp folders for each WebView2 so they start with a fresh profile
+                _calibrationUserDataFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WpfAppTest_Calibration_" + Guid.NewGuid().ToString("N"));
+                _statusUserDataFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WpfAppTest_Status_" + Guid.NewGuid().ToString("N"));
+
+                // Create the WebView2 controls at runtime (XAML no longer contains them) and add to their host grids.
+                Calibration_Windows = new Microsoft.Web.WebView2.Wpf.WebView2();
+                Status_Windows = new Microsoft.Web.WebView2.Wpf.WebView2();
+
+                // Add to host containers defined in XAML
+                CalibrationHost.Children.Add(Calibration_Windows);
+                StatusHost.Children.Add(Status_Windows);
+
+                // Create environments that use the user data folders. This ensures each WebView2 has an isolated, fresh profile.
+                var envCal = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, _calibrationUserDataFolder);
+                await Calibration_Windows.EnsureCoreWebView2Async(envCal);
+
+                var envStatus = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, _statusUserDataFolder);
+                await Status_Windows.EnsureCoreWebView2Async(envStatus);
+
+                // Keep initial pages blank (about:blank already set in XAML). No navigation here.
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to initialize WebView2 environments: {ex.Message}", "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void MainWindow_Closed(object sender, EventArgs e)
+        {
+            // Attempt to dispose webviews and delete their user-data folders so cached data is removed.
+            try
+            {
+                // Navigate to about:blank to release any active content
+                try { Calibration_Windows?.CoreWebView2?.Navigate("about:blank"); } catch { }
+                try { Status_Windows?.CoreWebView2?.Navigate("about:blank"); } catch { }
+
+                // Allow a short delay for navigation to complete
+                System.Threading.Thread.Sleep(200);
+
+                // Dispose controls if possible
+                try { Calibration_Windows?.Dispose(); } catch { }
+                try { Status_Windows?.Dispose(); } catch { }
+
+                // Force GC to release file handles
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                // Delete user data folders
+                DeleteDirectoryWithRetries(_calibrationUserDataFolder);
+                DeleteDirectoryWithRetries(_statusUserDataFolder);
+            }
+            catch
+            {
+                // Suppress any exceptions during cleanup
+            }
+        }
+
+        private static void DeleteDirectoryWithRetries(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            const int maxAttempts = 5;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (System.IO.Directory.Exists(path))
+                        System.IO.Directory.Delete(path, true);
+                    return;
+                }
+                catch
+                {
+                    System.Threading.Thread.Sleep(200);
+                }
+            }
+        }
+
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Navigate the Calibration WebView2 to the calibration page
+                Calibration_Windows.Source = new Uri("https://192.168.150.9:8443/calibration.html");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to navigate to calibration page: {ex.Message}", "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Navigate the Status WebView2 to the status page (optional)
+                Status_Windows.Source = new Uri("https://192.168.150.9:8443/status.html");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to navigate to status page: {ex.Message}", "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+}

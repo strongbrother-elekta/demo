@@ -1,0 +1,280 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Security.Cryptography.X509Certificates;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace WpfAppTest
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        // Per-WebView2 user data folders so we can remove cached data on close
+        private string _calibrationUserDataFolder;
+        private string _statusUserDataFolder;
+        // Runtime-created WebView2 controls (created in Loaded to control environment)
+        private Microsoft.Web.WebView2.Wpf.WebView2 Calibration_Windows;
+        private Microsoft.Web.WebView2.Wpf.WebView2 Status_Windows;
+        // Expected certificate details (replace with real values for your service)
+        // You should set these to match the server certificate (subject, issuer or serial) for strict verification.
+        private readonly string _expectedCertSubject = "CN=192.168.150.9"; // example: "CN=my-device.local"
+        private readonly string _expectedCertIssuer = "CN=MyCA"; // example issuer name
+        private readonly string _expectedCertSerial = null; // optional serial number string (hex)
+        private readonly string _expectedCertThumbprint = null; // optional expected thumbprint (hex string, SHA-1 or SHA-256)
+        // Client certificate configuration - set these to your client cert path/thumbprint
+        private readonly string _clientCertPath = null; // e.g. @"C:\certs\client.pfx"
+        private readonly string _clientCertPassword = null; // password for PFX if needed
+        private System.Security.Cryptography.X509Certificates.X509Certificate2 _loadedClientCert;
+        private bool _addedClientCertToStore = false;
+        public MainWindow()
+        {
+            InitializeComponent();
+            this.Loaded += MainWindow_Loaded;
+            this.Closed += MainWindow_Closed;
+        }
+
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Create unique temp folders for each WebView2 so they start with a fresh profile
+                _calibrationUserDataFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WpfAppTest_Calibration_" + Guid.NewGuid().ToString("N"));
+                _statusUserDataFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "WpfAppTest_Status_" + Guid.NewGuid().ToString("N"));
+
+                // Create the WebView2 controls at runtime (XAML no longer contains them) and add to their host grids.
+                Calibration_Windows = new Microsoft.Web.WebView2.Wpf.WebView2();
+                Status_Windows = new Microsoft.Web.WebView2.Wpf.WebView2();
+
+                // Add to host containers defined in XAML
+                CalibrationHost.Children.Add(Calibration_Windows);
+                StatusHost.Children.Add(Status_Windows);
+
+                // Create environments that use the user data folders. This ensures each WebView2 has an isolated, fresh profile.
+                var envCal = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, _calibrationUserDataFolder);
+                await Calibration_Windows.EnsureCoreWebView2Async(envCal);
+                // Attach certificate error handler so we can validate/override server certs for this control
+                Calibration_Windows.CoreWebView2.ServerCertificateErrorDetected += Calibration_ServerCertificateErrorDetected;
+
+                var envStatus = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(null, _statusUserDataFolder);
+                await Status_Windows.EnsureCoreWebView2Async(envStatus);
+                // Attach certificate error handler for status control as well
+                Status_Windows.CoreWebView2.ServerCertificateErrorDetected += Status_ServerCertificateErrorDetected;
+
+                // Keep initial pages blank (about:blank already set in XAML). No navigation here.
+            }
+            catch
+            {
+
+            }
+
+            // If a client certificate path is configured, load and add it to CurrentUser\My so WebView2 can present it during TLS client-auth.
+            try
+            {
+                LoadAndAddClientCertificate();
+            }
+            catch
+            {
+                // ignore load errors; certificate not required
+            }
+        }
+          
+
+        // Server certificate error handlers - adjust logic to accept your service certificate when appropriate
+        private void Calibration_ServerCertificateErrorDetected(object sender, Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorDetectedEventArgs e)
+        {
+            try
+            {
+                var cert = e.ServerCertificate;
+                if (cert != null && ValidateServerCertificate(cert))
+                {
+                    e.Action = Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorAction.AlwaysAllow;
+                    return;
+                }
+            }
+            catch
+            {
+                // fall through to cancel
+            }
+
+            e.Action = Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorAction.Cancel;
+        }
+
+        private void Status_ServerCertificateErrorDetected(object sender, Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorDetectedEventArgs e)
+        {
+            try
+            {
+                var cert = e.ServerCertificate;
+                if (cert != null && ValidateServerCertificate(cert))
+                {
+                    e.Action = Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorAction.AlwaysAllow;
+                    return;
+                }
+            }
+            catch
+            {
+                // fall through to cancel
+            }
+
+            e.Action = Microsoft.Web.WebView2.Core.CoreWebView2ServerCertificateErrorAction.Cancel;
+        }
+
+        // Validate server certificate using reflection to access certificate properties provided by WebView2.
+        private bool ValidateServerCertificate(object certObj)
+        {
+            if (certObj == null)
+                return false;
+
+            try
+            {
+                var t = certObj.GetType();
+                string subject = t.GetProperty("Subject")?.GetValue(certObj)?.ToString();
+                string issuer = t.GetProperty("Issuer")?.GetValue(certObj)?.ToString();
+                string serial = t.GetProperty("SerialNumber")?.GetValue(certObj)?.ToString() ?? t.GetProperty("Serial")?.GetValue(certObj)?.ToString();
+                // Try to get thumbprint/fingerprint if available
+                string thumbprint = t.GetProperty("Thumbprint")?.GetValue(certObj)?.ToString()
+                    ?? t.GetProperty("CertificateHash")?.GetValue(certObj)?.ToString();
+
+                // If an expected serial is provided, require exact match (ignore case and separators)
+                if (!string.IsNullOrEmpty(_expectedCertSerial))
+                {
+                    if (string.IsNullOrEmpty(serial))
+                        return false;
+                    var normSerial = serial.Replace(" ", "").Replace(":", "").ToLowerInvariant();
+                    var normExpected = _expectedCertSerial.Replace(" ", "").Replace(":", "").ToLowerInvariant();
+                    return normSerial == normExpected;
+                }
+
+                if (!string.IsNullOrEmpty(_expectedCertThumbprint))
+                {
+                    if (string.IsNullOrEmpty(thumbprint))
+                        return false;
+                    var normThumb = thumbprint.Replace(" ", "").Replace(":", "").ToLowerInvariant();
+                    var normExpected = _expectedCertThumbprint.Replace(" ", "").Replace(":", "").ToLowerInvariant();
+                    return normThumb == normExpected;
+                }
+
+                // If both subject and issuer expectations are set, require both to match (contains)
+                if (!string.IsNullOrEmpty(_expectedCertSubject) && !string.IsNullOrEmpty(_expectedCertIssuer))
+                {
+                    if (string.IsNullOrEmpty(subject) || string.IsNullOrEmpty(issuer))
+                        return false;
+                    return subject.IndexOf(_expectedCertSubject, StringComparison.OrdinalIgnoreCase) >= 0
+                        && issuer.IndexOf(_expectedCertIssuer, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+
+                // If only subject expected
+                if (!string.IsNullOrEmpty(_expectedCertSubject))
+                {
+                    if (string.IsNullOrEmpty(subject))
+                        return false;
+                    return subject.IndexOf(_expectedCertSubject, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+
+                // If only issuer expected
+                if (!string.IsNullOrEmpty(_expectedCertIssuer))
+                {
+                    if (string.IsNullOrEmpty(issuer))
+                        return false;
+                    return issuer.IndexOf(_expectedCertIssuer, StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+
+                // No expectations set -> do not allow by default
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void MainWindow_Closed(object sender, EventArgs e)
+        {
+            // Attempt to dispose webviews and delete their user-data folders so cached data is removed.
+            try
+            {
+                // Navigate to about:blank to release any active content
+                try { Calibration_Windows?.CoreWebView2?.Navigate("about:blank"); } catch { }
+                try { Status_Windows?.CoreWebView2?.Navigate("about:blank"); } catch { }
+
+                // Allow a short delay for navigation to complete
+                System.Threading.Thread.Sleep(200);
+
+                // Dispose controls if possible
+                try { Calibration_Windows?.Dispose(); } catch { }
+                try { Status_Windows?.Dispose(); } catch { }
+
+                // Force GC to release file handles
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                // Delete user data folders
+                DeleteDirectoryWithRetries(_calibrationUserDataFolder);
+                DeleteDirectoryWithRetries(_statusUserDataFolder);
+            }
+            catch
+            {
+                // Suppress any exceptions during cleanup
+            }
+        }
+
+        private static void DeleteDirectoryWithRetries(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            const int maxAttempts = 5;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (System.IO.Directory.Exists(path))
+                        System.IO.Directory.Delete(path, true);
+                    return;
+                }
+                catch
+                {
+                    System.Threading.Thread.Sleep(200);
+                }
+            }
+        }
+
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Navigate the Calibration WebView2 to the calibration page
+                Calibration_Windows.Source = new Uri("https://192.168.150.9:8443/calibration.html");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to navigate to calibration page: {ex.Message}", "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void Button_Click_1(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Navigate the Status WebView2 to the status page (optional)
+                Status_Windows.Source = new Uri("https://192.168.150.9:8443/status.html");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to navigate to status page: {ex.Message}", "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+}
