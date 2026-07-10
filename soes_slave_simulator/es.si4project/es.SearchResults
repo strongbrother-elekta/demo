@@ -1,0 +1,11 @@
+---- esc_hal_start_pcap Matches (4 in 4 files) ----
+esc_hal.c (src) line 86 : int esc_hal_start_pcap(const char *iface)
+esc_hal.h (src) line 17 : int esc_hal_start_pcap(const char *iface);
+main in main.c (src) :         if (esc_hal_start_pcap(pcap_iface) == 0) {
+pcap_emulator.c (src) line 121 : int esc_hal_start_pcap(const char *iface)
+---- esc_hal_start_pcap Search Errors Encountered (4) ----
+The following 4 files could not be processed:
+C:\SMCAT Network\SOES\soes_slave_simulator\build\CMakeFiles\3.16.3\CompilerIdC\CMakeCCompilerId.c : File could not be opened.
+C:\SMCAT Network\SOES\soes_slave_simulator\build\CMakeFiles\3.16.3\CompilerIdCXX\CMakeCXXCompilerId.cpp : File could not be opened.
+C:\SMCAT Network\SOES\soes_slave_simulator\build\soes_build\CMakeFiles\soes.dir\link.txt : File could not be opened.
+C:\SMCAT Network\SOES\soes_slave_simulator\build\soes_build\Makefile : File could not be opened.

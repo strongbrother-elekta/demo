@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EtherCATInfo>
+    <!-- 1. 制造商信息 -->
+    <!-- 开发测试阶段可使用示例ID 0x12345678，产品发布前需向ETG申请官方Vendor ID[reference:9][reference:10] -->
+    <Vendor>
+        <Id>0x12345678</Id>                <!-- 请替换为你的Vendor ID -->
+        <Name>YourCompanyName</Name>
+    </Vendor>
+
+    <!-- 2. 从站设备描述 -->
+    <Descriptions>
+        <Devices>
+            <Device>
+                <!-- 2.1 设备基本信息 -->
+                <Type ProductCode="0x00000001" RevisionNo="0x00010000">SimpleIO</Type>
+                <Name>8DI/8DO Module</Name>
+
+                <!-- 2.2 邮箱通信配置（支持CoE） -->
+                <!-- 声明支持CoE（CANopen over EtherCAT）协议[reference:11] -->
+                <Mailbox>
+                    <SupportedProtocols>
+                        <CoE>1</CoE>
+                    </SupportedProtocols>
+                </Mailbox>
+
+                <!-- 2.3 同步管理器 (Sync Manager) 配置 -->
+                <Sm>
+                    <StartAddress>0x1000</StartAddress>
+                    <DefaultSize>64</DefaultSize>
+                    <!-- 输入/输出数据在这里被分组定义 -->
+                </Sm>
+
+                <!-- 2.4 PDO 映射定义 -->
+                <!-- RxPdo: 主站输出 -> 从站输入（控制DO） -->
+                <RxPdo>
+                    <Index>0x1600</Index>
+                    <Name>Outputs_8Bit</Name>
+                    <Entry>
+                        <Index>0x7000</Index>   <!-- 映射的对象字典索引 -->
+                        <SubIndex>0x01</SubIndex>
+                        <BitLen>8</BitLen>      <!-- 8位输出 -->
+                        <Name>DO_Byte</Name>
+                    </Entry>
+                </RxPdo>
+                <!-- TxPdo: 从站输出 -> 主站输入（报告DI状态） -->
+                <TxPdo>
+                    <Index>0x1A00</Index>
+                    <Name>Inputs_8Bit</Name>
+                    <Entry>
+                        <Index>0x6000</Index>
+                        <SubIndex>0x01</SubIndex>
+                        <BitLen>8</BitLen>      <!-- 8位输入 -->
+                        <Name>DI_Byte</Name>
+                    </Entry>
+                </TxPdo>
+            </Device>
+        </Devices>
+    </Descriptions>
+</EthercatInfo>

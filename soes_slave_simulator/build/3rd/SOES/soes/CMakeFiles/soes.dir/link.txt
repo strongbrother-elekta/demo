@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsoes.a CMakeFiles/soes.dir/esc.c.o CMakeFiles/soes.dir/esc_coe.c.o CMakeFiles/soes.dir/esc_foe.c.o CMakeFiles/soes.dir/esc_eoe.c.o CMakeFiles/soes.dir/esc_eep.c.o CMakeFiles/soes.dir/ecat_slv.c.o
+/usr/bin/ranlib libsoes.a

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EtherCATInfo>
+    <Vendor>
+        <Id>0x12345678</Id>
+        <Name>YourCompanyName</Name>
+    </Vendor>
+
+    <Descriptions>
+        <Devices>
+            <Device>
+                <Type ProductCode="0x00000001" RevisionNo="0x00010000">SimpleIO</Type>
+                <Name>8DI/8DO Module (SOES)</Name>
+
+                <Mailbox>
+                    <SupportedProtocols>
+                        <CoE>1</CoE>
+                    </SupportedProtocols>
+                    <TxMailbox>
+                        <Size>256</Size>
+                    </TxMailbox>
+                    <RxMailbox>
+                        <Size>256</Size>
+                    </RxMailbox>
+                </Mailbox>
+
+                <Sm>
+                    <StartAddress>0x1000</StartAddress>
+                    <DefaultSize>256</DefaultSize>
+                    <ControlByte>0x26</ControlByte>
+                </Sm>
+                <Sm>
+                    <StartAddress>0x1100</StartAddress>
+                    <DefaultSize>256</DefaultSize>
+                    <ControlByte>0x22</ControlByte>
+                </Sm>
+                <Sm>
+                    <StartAddress>0x1200</StartAddress>
+                    <DefaultSize>8</DefaultSize>
+                    <ControlByte>0x64</ControlByte>
+                    <Enable>1</Enable>
+                </Sm>
+                <Sm>
+                    <StartAddress>0x1300</StartAddress>
+                    <DefaultSize>8</DefaultSize>
+                    <ControlByte>0x20</ControlByte>
+                    <Enable>1</Enable>
+                </Sm>
+
+                <Dictionary>
+                    <ObjectInfo Index="0x1000" Name="Device type" ObjectType="VAR">
+                        <Type DataType="UINT32">0x00013889</Type>
+                    </ObjectInfo>
+                    <ObjectInfo Index="0x1008" Name="Device name" ObjectType="VAR">
+                        <Type DataType="STRING">SOES_8DI8DO</Type>
+                    </ObjectInfo>
+                    <ObjectInfo Index="0x6000" Name="Digital Inputs" ObjectType="VAR">
+                        <Type DataType="UINT8" />
+                        <Flag>1</Flag>
+                    </ObjectInfo>
+                    <ObjectInfo Index="0x7000" Name="Digital Outputs" ObjectType="VAR">
+                        <Type DataType="UINT8" />
+                        <Flag>1</Flag>
+                    </ObjectInfo>
+                    <ObjectInfo Index="0x1600" Name="RxPDO_8DO" ObjectType="RECORD">
+                        <Entry ObjectType="Entry">
+                            <Index>0x7000</Index><SubIndex>0x00</SubIndex>
+                            <BitLen>8</BitLen>
+                        </Entry>
+                    </ObjectInfo>
+                    <ObjectInfo Index="0x1A00" Name="TxPDO_8DI" ObjectType="RECORD">
+                        <Entry ObjectType="Entry">
+                            <Index>0x6000</Index><SubIndex>0x00</SubIndex>
+                            <BitLen>8</BitLen>
+                        </Entry>
+                    </ObjectInfo>
+                </Dictionary>
+
+                <RxPdo>
+                    <Index>0x1600</Index>
+                    <Name>Outputs_8Bit</Name>
+                    <Entry>
+                        <Index>0x7000</Index>
+                        <SubIndex>0x00</SubIndex>
+                        <BitLen>8</BitLen>
+                        <Name>DO_Byte</Name>
+                    </Entry>
+                </RxPdo>
+                <TxPdo>
+                    <Index>0x1A00</Index>
+                    <Name>Inputs_8Bit</Name>
+                    <Entry>
+                        <Index>0x6000</Index>
+                        <SubIndex>0x00</SubIndex>
+                        <BitLen>8</BitLen>
+                        <Name>DI_Byte</Name>
+                    </Entry>
+                </TxPdo>
+            </Device>
+        </Devices>
+    </Descriptions>
+</EtherCATInfo>
